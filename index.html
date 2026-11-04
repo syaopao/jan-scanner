@@ -92,7 +92,7 @@ const $=id=>document.getElementById(id);
 const KEY='jan_reg_scanner_v1',FAV_KEY='jan_reg_favorites_v1',SOUND_KEY='jan_reg_sound_v1',LATEST_KEY='jan_reg_show_latest_v1';
 let items=[],favorites=[],scanner=null,running=false,busy=false,audio=null,tab='scan';
 let sound=true,showLatest=true,lastCode='',lastSeen=0,lastAccept=0,latest='';
-const VALID_CODE=/^[0-9]{6,32}$/;
+const VALID_CODE=/^[\x20-\x7E]{1,64}$/;
 try{const v=JSON.parse(localStorage.getItem(KEY)||'[]');if(Array.isArray(v))items=v.filter(x=>x&&typeof x.code==='string'&&VALID_CODE.test(x.code)&&Number.isInteger(x.qty)&&x.qty>0).slice(0,500);}catch(e){}
 try{const v=JSON.parse(localStorage.getItem(FAV_KEY)||'[]');if(Array.isArray(v))favorites=v.filter(x=>typeof x==='string'&&VALID_CODE.test(x));}catch(e){}
 try{sound=localStorage.getItem(SOUND_KEY)!=='off';showLatest=localStorage.getItem(LATEST_KEY)!=='off';}catch(e){}
