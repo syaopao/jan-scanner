@@ -32,6 +32,18 @@ header .logo{color:#1677ed;font-size:25px}h1{font-size:19px;margin:0}header smal
 .icon-button{padding:7px 4px;background:transparent;color:#94a3b8;font-size:20px}
 .icon-button.liked{color:#e44d76}.remove{color:#dc2626}
 .empty{padding:32px 12px;text-align:center;color:#94a3b8;font-size:13px}
+.product-card{background:#fff;border:1px solid #e7eaf1;border-radius:13px;padding:12px;margin-bottom:9px;box-shadow:0 1px 4px #1524410a}
+.product-top{display:flex;gap:11px;align-items:flex-start}.product-thumb{width:68px;height:78px;flex:none;background:#eef2f8;border-radius:9px;display:flex;align-items:center;justify-content:center;color:#9caec2;overflow:hidden;font-size:22px}
+.product-thumb img{width:100%;height:100%;object-fit:contain}.product-main{flex:1;min-width:0}.product-title{font-size:14px;font-weight:700;line-height:1.5;overflow-wrap:anywhere}
+.product-code{font-size:12px;color:#748399;margin-top:4px;overflow-wrap:anywhere}.product-category{font-size:11px;color:#64748b;margin-top:3px}
+.product-controls{display:flex;align-items:center;justify-content:flex-end;gap:9px;margin-top:9px}
+.prices{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.price{background:#f4f7fb;padding:9px 10px;border-radius:9px;min-width:0}.price-label{font-size:11px;color:#64748b}.price-val{font-size:17px;font-weight:750;overflow-wrap:anywhere;margin-top:3px}
+.last-product{display:flex;align-items:center;gap:9px;margin-top:7px}.last-product .product-thumb{width:55px;height:60px}
+.input-label{font-size:12px;color:#334155;font-weight:700;display:block;margin:12px 0 5px}
+.setting-input{width:100%;max-width:100%;border:1px solid #cdd8e8;background:#fff;border-radius:8px;padding:11px;font:inherit;font-size:13px}
+#connectionStatus{margin-top:9px}.connection-actions{display:flex;gap:8px;margin-top:9px}.connection-actions button{flex:1;padding:12px;font-size:13px}
+[hidden]{display:none!important}
 .action-group{display:flex;flex-direction:column;gap:9px;margin-top:10px}.action-group button{padding:14px}
 .subtle{font-size:12px;color:#64748b;line-height:1.65}
 .setting-row{display:flex;justify-content:space-between;align-items:center;gap:12px}.setting-row button{padding:10px 13px}
@@ -51,7 +63,7 @@ footer button.active{color:#1677ed;background:#eaf2ff}footer .navicon{font-size:
   </div>
   <div class="panel" id="latestPanel">
     <div class="latest-label"><strong>最新の読み取り</strong><span id="latestBadge" class="badge" hidden>✓ 読取済み</span></div>
-    <div id="latestCode" class="latest-code">未読み取り</div>
+    <div id="latestCode" class="latest-code">未読み取り</div><div id="latestProduct" class="subtle"></div>
     <div class="latest-foot"><span id="latestQty">読み取り待機中</span><button id="copyLatest" disabled>📋 コピー</button></div>
   </div>
 </section>
@@ -60,7 +72,7 @@ footer button.active{color:#1677ed;background:#eaf2ff}footer .navicon{font-size:
   <div id="list"></div>
   <div class="action-group">
     <button id="copyAll" class="blue">📋 一覧をコピー</button>
-    <button id="send" class="green" disabled>シート1へ送信（GAS未接続）</button>
+    <button id="send" class="green" disabled>シート1へ送信</button>
     <button id="clear" class="gray">一覧クリア</button>
   </div>
   <p class="subtle" id="listStatus">JANと数量をまとめてコピーできます。読み取り履歴は端末内に保存されます。</p>
@@ -78,6 +90,16 @@ footer button.active{color:#1677ed;background:#eaf2ff}footer .navicon{font-size:
     <p class="subtle">バーコード検出時に音と振動でお知らせします。音量は端末側でも調整できます。</p>
   </div>
   <div class="panel"><p class="setting-title">表示設定</p><div class="setting-row"><span>最新の読み取りを表示</span><button id="showLatest" class="blue" aria-pressed="true">表示 ON</button></div><p class="subtle">OFFでも一覧への記録は続きます。</p></div>
+  <div class="panel">
+    <p class="setting-title">Googleスプレッドシート接続</p>
+    <label class="input-label" for="apiUrl">GAS ウェブアプリURL（/exec）</label>
+    <input class="setting-input" id="apiUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+    <label class="input-label" for="apiKey">接続キー（GASのSCANNER_KEY）</label>
+    <input class="setting-input" id="apiKey" type="password" placeholder="16文字以上の接続キー" autocomplete="off">
+    <div class="connection-actions"><button id="saveConnection" class="blue">接続テスト・保存</button><button id="reloadProducts" class="gray">商品情報を更新</button></div>
+    <p class="subtle" id="connectionStatus">未接続です。GASをデプロイしてから設定してください。</p>
+    <p class="subtle">参照：シート2 C〜H列 ／ 転送：シート1 A〜D列。URLと接続キーはこの端末だけに保存されます。</p>
+  </div>
   <div class="panel"><p class="setting-title">対応バーコード</p><p class="subtle">JAN / EAN-13・EAN-8 / UPC-A・UPC-E / CODE128・CODE39 / ITFに対応しています。形式によって読み取りやすさは異なります。</p></div>
 </section>
 <footer>
@@ -89,14 +111,17 @@ footer button.active{color:#1677ed;background:#eaf2ff}footer .navicon{font-size:
 </div>
 <script>
 const $=id=>document.getElementById(id);
-const KEY='jan_reg_scanner_v1',FAV_KEY='jan_reg_favorites_v1',SOUND_KEY='jan_reg_sound_v1',LATEST_KEY='jan_reg_show_latest_v1';
+const KEY='jan_reg_scanner_v1',FAV_KEY='jan_reg_favorites_v1',SOUND_KEY='jan_reg_sound_v1',LATEST_KEY='jan_reg_show_latest_v1',API_URL_KEY='jan_reg_gas_url',API_SECRET_KEY='jan_reg_gas_key';
 let items=[],favorites=[],scanner=null,running=false,busy=false,audio=null,tab='scan';
 let sound=true,showLatest=true,lastCode='',lastSeen=0,lastAccept=0,latest='';
-const VALID_CODE=/^[\x20-\x7E]{1,64}$/;
+const VALID_CODE=/^[A-Za-z0-9][A-Za-z0-9 ._\/-]{0,63}$/;
+let apiUrl='',apiKey='',sending=false,productData=Object.create(null),lookupPending=new Set(),lookupTimer=null;
 try{const v=JSON.parse(localStorage.getItem(KEY)||'[]');if(Array.isArray(v))items=v.filter(x=>x&&typeof x.code==='string'&&VALID_CODE.test(x.code)&&Number.isInteger(x.qty)&&x.qty>0).slice(0,500);}catch(e){}
 try{const v=JSON.parse(localStorage.getItem(FAV_KEY)||'[]');if(Array.isArray(v))favorites=v.filter(x=>typeof x==='string'&&VALID_CODE.test(x));}catch(e){}
 try{sound=localStorage.getItem(SOUND_KEY)!=='off';showLatest=localStorage.getItem(LATEST_KEY)!=='off';}catch(e){}
+try{apiUrl=localStorage.getItem(API_URL_KEY)||'';apiKey=localStorage.getItem(API_SECRET_KEY)||'';}catch(e){}
 latest=items.length?items[0].code:'';
+$('apiUrl').value=apiUrl;$('apiKey').value=apiKey;
 function persist(){try{localStorage.setItem(KEY,JSON.stringify(items));}catch(e){}}
 function saveFav(){try{localStorage.setItem(FAV_KEY,JSON.stringify(favorites));}catch(e){}}
 function status(s){$('scanStatus').textContent=s;}
@@ -105,6 +130,8 @@ function updateControls(){
  $('headerState').textContent=running?'● スキャン中':busy?'起動中':'カメラ停止';
  $('copyLatest').disabled=!latest;
  $('copyAll').disabled=!items.length;$('clear').disabled=!items.length;
+ $('send').disabled=!items.length||!connected()||sending;
+ $('send').textContent=sending?'送信確認中...':connected()?'シート1へ送信':'シート1へ送信（未接続）';
  $('sound').textContent=sound?'🔊 ON':'🔇 OFF';
  $('sound').className=sound?'blue':'gray';
  $('latestPanel').hidden=!showLatest;
@@ -112,13 +139,33 @@ function updateControls(){
  $('showLatest').className=showLatest?'blue':'gray';
  $('showLatest').setAttribute('aria-pressed',String(showLatest));
 }
+function makeThumb(url){
+ const holder=document.createElement('div');holder.className='product-thumb';holder.textContent='▧';
+ if(typeof url==='string'&&/^https:\/\//i.test(url)){
+  const img=document.createElement('img');img.alt='商品画像';img.loading='lazy';img.referrerPolicy='no-referrer';
+  img.onerror=()=>{img.remove();holder.textContent='▧';};
+  img.onload=()=>{holder.textContent='';holder.append(img);};
+  img.src=url;
+ }
+ return holder;
+}
+function infoFor(code){return productData[code]||null;}
+function priceLabel(value){const v=String(value||'').trim();return v?v:'—';}
 function render(){
  const list=$('list');list.replaceChildren();
  $('count').textContent=items.length+'種（計'+items.reduce((sum,i)=>sum+i.qty,0)+'点）';
  if(!items.length){const el=document.createElement('div');el.className='empty';el.textContent='読み取ったバーコードはここに表示されます';list.append(el);}
  items.forEach(item=>{
-  const row=document.createElement('div');row.className='item';
-  const code=document.createElement('span');code.className='code';code.textContent=item.code;
+  const info=infoFor(item.code);
+  const card=document.createElement('div');card.className='product-card';
+  const top=document.createElement('div');top.className='product-top';
+  top.append(makeThumb(info&&info.image));
+  const main=document.createElement('div');main.className='product-main';
+  const title=document.createElement('div');title.className='product-title';title.textContent=info?(info.title||'商品名未登録'):connected()?'商品情報を確認中…':'商品情報未接続';
+  const code=document.createElement('div');code.className='product-code';code.textContent='バーコード：'+item.code;
+  const cat=document.createElement('div');cat.className='product-category';cat.textContent=info?(info.category||'カテゴリ未登録'):'';
+  main.append(title,code,cat);top.append(main);card.append(top);
+  const actions=document.createElement('div');actions.className='product-controls';
   const qty=document.createElement('div');qty.className='qty';
   const minus=document.createElement('button');minus.textContent='−';minus.setAttribute('aria-label','数量を減らす');
   minus.onclick=()=>{if(item.qty>1){item.qty--;persist();render();}};
@@ -130,18 +177,38 @@ function render(){
   heart.onclick=()=>{favorites=favorites.includes(item.code)?favorites.filter(x=>x!==item.code):[item.code,...favorites];saveFav();render();};
   const del=document.createElement('button');del.className='icon-button remove';del.textContent='×';del.setAttribute('aria-label','削除');
   del.onclick=()=>{items=items.filter(x=>x.code!==item.code);persist();render();};
-  row.append(code,qty,heart,del);list.append(row);
+  const qtyLabel=document.createElement('span');qtyLabel.className='subtle';qtyLabel.textContent='数量';
+  actions.append(qtyLabel,qty,heart,del);card.append(actions);
+  const prices=document.createElement('div');prices.className='prices';
+  [['相場',info&&info.market],['販売実績額',info&&info.sold]].forEach(pair=>{
+   const cell=document.createElement('div');cell.className='price';
+   const label=document.createElement('div');label.className='price-label';label.textContent=pair[0];
+   const value=document.createElement('div');value.className='price-val';value.textContent=priceLabel(pair[1]);
+   cell.append(label,value);prices.append(cell);
+  });
+  card.append(prices);list.append(card);
  });
  const fav=$('favList');fav.replaceChildren();$('favCount').textContent=favorites.length+'件';
  if(!favorites.length){const el=document.createElement('div');el.className='empty';el.textContent='お気に入りはまだありません';fav.append(el);}
  favorites.forEach(code=>{
-  const row=document.createElement('div');row.className='item';
-  const label=document.createElement('span');label.className='code';label.textContent=code;
+  const info=infoFor(code),row=document.createElement('div');row.className='item';
+  row.append(makeThumb(info&&info.image));
+  const label=document.createElement('div');label.className='code';label.textContent=info&&info.title?info.title+'\n'+code:code;label.style.whiteSpace='pre-line';
   row.append(label);fav.append(row);
  });
  $('latestCode').textContent=latest||'未読み取り';
  $('latestQty').textContent=latest?'数量 '+(items.find(x=>x.code===latest)?.qty||0):'読み取り待機中';
  $('latestBadge').hidden=!latest;
+ const latestBox=$('latestProduct');latestBox.replaceChildren();
+ if(latest){
+  const info=infoFor(latest);
+  if(info){
+   const wrap=document.createElement('div');wrap.className='last-product';
+   wrap.append(makeThumb(info.image));
+   const label=document.createElement('div');label.textContent=info.title||'商品名未登録';label.style.fontWeight='700';
+   wrap.append(label);latestBox.append(wrap);
+  }else latestBox.textContent=connected()?'商品情報を確認中…':'';
+ }
  updateControls();
 }
 function unlockAudio(){try{const A=window.AudioContext||window.webkitAudioContext;if(A&&!audio)audio=new A();if(audio&&audio.state==='suspended')audio.resume();}catch(e){}}
@@ -155,7 +222,7 @@ function addItem(code,notify=true){
  else items.unshift({code,qty:1});
  latest=code;
  if(notify){beep(i>=0);if(navigator.vibrate)navigator.vibrate(80);status('✓ 読み取り成功：'+code);}
- persist();render();
+ persist();render();queueLookup([code]);
 }
 function onRead(value){
  const code=String(value).trim();
@@ -204,10 +271,100 @@ async function switchTab(next){
  document.querySelectorAll('footer button').forEach(el=>el.classList.toggle('active',el.dataset.tab===next));
  window.scrollTo(0,0);
  if(next==='scan')start();
+ if(next==='list'||next==='fav')queueLookup(next==='list'?items.map(x=>x.code):favorites);
 }
 async function copyText(value){
  if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(value);return;}
  const el=document.createElement('textarea');el.value=value;el.style.position='fixed';el.style.opacity='0';document.body.append(el);el.select();const ok=document.execCommand('copy');el.remove();if(!ok)throw Error('コピーに失敗しました');
+}
+function connected(){
+ return /^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(apiUrl)&&apiKey.length>=16;
+}
+let cbSerial=0;
+function jsonp(action,params={}){
+ return new Promise((resolve,reject)=>{
+  if(!connected())return reject(Error('接続設定がありません'));
+  const name='janCb_'+Date.now()+'_'+(++cbSerial);
+  const url=new URL(apiUrl);
+  url.searchParams.set('action',action);url.searchParams.set('key',apiKey);url.searchParams.set('callback',name);
+  for(const [k,v] of Object.entries(params))url.searchParams.set(k,String(v));
+  const script=document.createElement('script');
+  let done=false;
+  const finish=(err,data)=>{if(done)return;done=true;clearTimeout(timeout);delete window[name];script.remove();err?reject(err):resolve(data);};
+  const timeout=setTimeout(()=>finish(Error('応答がありません。GASのデプロイとアクセス権を確認してください')),15000);
+  window[name]=data=>finish(null,data);
+  script.onerror=()=>finish(Error('GASへの接続に失敗しました'));
+  script.src=url.toString();document.head.append(script);
+ });
+}
+function queueLookup(codes,force=false){
+ if(!connected())return;
+ for(const code of codes){
+  if(VALID_CODE.test(code)&&(force||!productData[code]))lookupPending.add(code);
+ }
+ clearTimeout(lookupTimer);
+ lookupTimer=setTimeout(flushLookup,300);
+}
+async function flushLookup(){
+ if(!connected()||!lookupPending.size)return;
+ const codes=[...lookupPending].slice(0,60);codes.forEach(x=>lookupPending.delete(x));
+ try{
+  const data=await jsonp('lookup',{codes:codes.join(',')});
+  if(!data.ok)throw Error(data.error||'検索エラー');
+  for(const code of codes){
+   productData[code]=data.products&&data.products[code]?data.products[code]:{title:'商品マスターに未登録',category:'',market:'',sold:'',image:''};
+  }
+  $('connectionStatus').textContent='商品情報を取得しました（'+codes.length+'件）';
+  render();
+ }catch(e){$('connectionStatus').textContent='照合エラー：'+e.message;}
+ if(lookupPending.size)lookupTimer=setTimeout(flushLookup,350);
+}
+async function saveConnection(){
+ const url=$('apiUrl').value.trim().replace(/\/+$/,'');
+ const key=$('apiKey').value.trim();
+ if(!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url)||key.length<16){
+  $('connectionStatus').textContent='正しい/execのURLと16文字以上の接続キーを入力してください';return;
+ }
+ apiUrl=url;apiKey=key;$('connectionStatus').textContent='接続テスト中…';
+ try{
+  const response=await jsonp('ping');
+  if(!response.ok)throw Error(response.error||'認証できません');
+  localStorage.setItem(API_URL_KEY,apiUrl);localStorage.setItem(API_SECRET_KEY,apiKey);
+  $('connectionStatus').textContent='✓ シートとの接続に成功しました';
+  productData=Object.create(null);queueLookup([...items.map(x=>x.code),...favorites],true);
+ }catch(e){$('connectionStatus').textContent='接続テスト失敗：'+e.message;}
+ updateControls();
+}
+async function sendItems(){
+ if(!connected()||sending||!items.length)return;
+ if(!confirm(items.length+'種類・'+items.reduce((n,x)=>n+x.qty,0)+'点をシート1に転送しますか？'))return;
+ const snapshot=items.map(x=>({code:x.code,qty:x.qty}));
+ const requestId='r'+Date.now()+'_'+Math.random().toString(36).slice(2,13);
+ sending=true;updateControls();$('listStatus').textContent='シートへ送信し、書き込み結果を確認しています…';
+ try{
+  await fetch(apiUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'save',key:apiKey,requestId,items:snapshot}),redirect:'follow'});
+  let confirmed=false;
+  for(let i=0;i<8;i++){
+   await new Promise(resolve=>setTimeout(resolve,850));
+   const result=await jsonp('status',{requestId});
+   if(!result.ok)throw Error(result.error||'送信確認エラー');
+   if(result.complete){
+    confirmed=true;
+    if(result.receipt?.saved!==snapshot.length)throw Error('保存件数が一致しません');
+    break;
+   }
+  }
+  if(!confirmed)throw Error('保存確認ができません。重複送信を避けるため、シート1を確認してください');
+  for(const sent of snapshot){
+   const item=items.find(x=>x.code===sent.code);
+   if(item){item.qty-=sent.qty;}
+  }
+  items=items.filter(x=>x.qty>0);
+  latest=items.length?items[0].code:'';
+  persist();render();
+  $('listStatus').textContent='✓ シート1に'+snapshot.length+'種類を送信しました';
+ }catch(e){$('listStatus').textContent='送信未確認：'+e.message+'。一覧は保持しました。';}
+ finally{sending=false;updateControls();}
 }
 document.querySelectorAll('footer button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
 $('start').onclick=()=>{unlockAudio();start();};
@@ -216,8 +373,11 @@ $('sound').onclick=()=>{sound=!sound;try{localStorage.setItem(SOUND_KEY,sound?'o
 $('showLatest').onclick=()=>{showLatest=!showLatest;try{localStorage.setItem(LATEST_KEY,showLatest?'on':'off');}catch(e){}updateControls();};
 $('copyLatest').onclick=async()=>{if(!latest)return;try{await copyText(latest);status('✓ 最新バーコードをコピーしました');}catch(e){status('コピーエラー：'+e.message);}};
 $('copyAll').onclick=async()=>{try{await copyText(items.map(x=>x.code+'\t'+x.qty).join('\n'));$('listStatus').textContent='✓ '+items.length+'種類のバーコードと数量をコピーしました';}catch(e){$('listStatus').textContent='コピーエラー：'+e.message;}};
+$('saveConnection').onclick=saveConnection;
+$('reloadProducts').onclick=()=>{productData=Object.create(null);queueLookup([...items.map(x=>x.code),...favorites],true);$('connectionStatus').textContent='商品情報を再取得中…';};
+$('send').onclick=sendItems;
 $('clear').onclick=()=>{if(!items.length||!confirm('読み取り一覧をクリアしますか？'))return;items=[];latest='';lastCode='';lastSeen=0;lastAccept=0;persist();render();};
 document.addEventListener('pointerdown',unlockAudio,{once:true});
 render();
-window.addEventListener('load',()=>start());
+window.addEventListener('load',()=>{start();if(connected())queueLookup([...items.map(x=>x.code),...favorites]);});
 </script></body></html>
