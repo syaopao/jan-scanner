@@ -28,7 +28,6 @@ button:disabled{opacity:.45}
 #status{color:#475569;font-size:12px;min-height:20px;margin-bottom:8px;overflow-wrap:anywhere}
 #list{flex:1;max-height:48dvh;overflow-y:auto}
 .item{display:flex;align-items:center;gap:7px;background:white;border-radius:10px;padding:10px;margin:0 0 8px}
-.seq{font-size:11px;color:#94a3b8;min-width:17px}
 .code{font-size:14px;font-weight:700;flex:1;overflow-wrap:anywhere}
 .qty{display:flex;align-items:center;gap:5px}
 .qty button{padding:0;width:28px;height:29px;background:#eef2f7;color:#334155}
@@ -79,7 +78,6 @@ function render(){
  if(!items.length){const e=document.createElement('div');e.className='empty';e.textContent='商品を次々にかざしてください';list.append(e);}
  items.forEach((item,i)=>{
   const row=document.createElement('div');row.className='item';
-  const n=document.createElement('span');n.className='seq';n.textContent=i+1;
   const code=document.createElement('span');code.className='code';code.textContent=item.code;
   const qty=document.createElement('div');qty.className='qty';
   const minus=document.createElement('button');minus.textContent='−';minus.setAttribute('aria-label','数量を減らす');
@@ -90,7 +88,7 @@ function render(){
   qty.append(minus,val,plus);
   const del=document.createElement('button');del.className='del';del.textContent='×';del.setAttribute('aria-label','この商品を削除');
   del.onclick=()=>{items.splice(i,1);persist();render();};
-  row.append(n,code,qty,del);list.append(row);
+  row.append(code,qty,del);list.append(row);
  });
  controls();
 }
@@ -112,6 +110,8 @@ function onRead(value){
  if(i>=0){const current=items.splice(i,1)[0];current.qty++;items.unshift(current);status('✓ 数量＋1：'+code);}
  else {items.unshift({code,qty:1});status('✓ 読み取り成功：'+code);}
  beep(i>=0);if(navigator.vibrate)navigator.vibrate(80);persist();render();
+ // 最新の読み取り結果を常に一覧の先頭で表示する
+ $('list').scrollTop=0;
 }
 // 端末のカメラ一覧を取得。名称が取得できる場合は背面を優先。
 let detectedCameras=[];
