@@ -150,7 +150,7 @@ function makeThumb(url){
  return holder;
 }
 function infoFor(code){return productData[code]||null;}
-function priceLabel(value){const v=String(value||'').trim();return v?v:'—';}
+function priceLabel(value){const v=String(value??'').trim();if(!v)return '—';const n=v.replace(/[¥￥,，\s]/g,'');return /^\d+(\.\d+)?$/.test(n)?'¥'+Number(n).toLocaleString('ja-JP'):v;}
 function render(){
  const list=$('list');list.replaceChildren();
  $('count').textContent=items.length+'種（計'+items.reduce((sum,i)=>sum+i.qty,0)+'点）';
@@ -337,12 +337,16 @@ async function saveConnection(){
 }
 async function sendItems(){
  if(!connected()||sending||!items.length)return;
+ if(items.length>200){$('listStatus').textContent='一度に送信できるのは200種類までです。';return;}
  if(!confirm(items.length+'種類・'+items.reduce((n,x)=>n+x.qty,0)+'点をシート1に転送しますか？'))return;
  const snapshot=items.map(x=>({code:x.code,qty:x.qty}));
  const requestId='r'+Date.now()+'_'+Math.random().toString(36).slice(2,13);
  sending=true;updateControls();$('listStatus').textContent='シートへ送信し、書き込み結果を確認しています…';
  try{
-  await fetch(apiUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'save',key:apiKey,requestId,items:snapshot}),redirect:'follow'});
+  // no-cors の応答は不透明。通信例外があっても、重複送信せず受領状態を確認する。
+  try{
+   await fetch(apiUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'save',key:apiKey,requestId,items:snapshot}),redirect:'follow'});
+  }catch(networkError){}
   let confirmed=false;
   for(let i=0;i<8;i++){
    await new Promise(resolve=>setTimeout(resolve,850));
