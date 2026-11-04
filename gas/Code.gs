@@ -30,7 +30,7 @@ function scannerJsonp_(callback, payload) {
     .setMimeType(ContentService.MimeType.JAVASCRIPT);
 }
 function scannerValidCode_(code) {
-  return /^[\x20-\x7E]{1,64}$/.test(String(code || ''));
+  return /^[A-Za-z0-9][A-Za-z0-9 ._\/-]{0,63}$/.test(String(code || ''));
 }
 function doGet(e) {
   var p = (e && e.parameter) || {};
@@ -120,9 +120,10 @@ function doPost(e) {
         var sheet = ss.getSheetByName('シート1');
         if (!sheet) throw new Error('シート1がありません');
         var firstRow = Math.max(2,sheet.getLastRow()+1);
+        // バーコードの先頭0が数値変換で落ちないよう書き込み前に書式設定
+        sheet.getRange(firstRow,3,rows.length,1).setNumberFormat('@');
         sheet.getRange(firstRow,1,rows.length,4).setValues(rows);
         sheet.getRange(firstRow,1,rows.length,1).setNumberFormat('yyyy/MM/dd HH:mm:ss');
-        sheet.getRange(firstRow,3,rows.length,1).setNumberFormat('@');
         SpreadsheetApp.flush();
         response={saved:rows.length,firstRow:firstRow};
         cache.put(cacheKey,JSON.stringify(response),21600);
