@@ -49,7 +49,7 @@ footer button.active{color:#1677ed;background:#eaf2ff}footer .navicon{font-size:
     <div class="camera-actions"><button id="start" class="blue">📷 カメラ起動</button><button id="stop" class="gray" disabled>停止</button></div>
     <div id="scanStatus" role="status">カメラを準備しています...</div>
   </div>
-  <div class="panel">
+  <div class="panel" id="latestPanel">
     <div class="latest-label"><strong>最新の読み取り</strong><span id="latestBadge" class="badge" hidden>✓ 読取済み</span></div>
     <div id="latestCode" class="latest-code">未読み取り</div>
     <div class="latest-foot"><span id="latestQty">読み取り待機中</span><button id="copyLatest" disabled>📋 コピー</button></div>
@@ -67,7 +67,7 @@ footer button.active{color:#1677ed;background:#eaf2ff}footer .navicon{font-size:
 </section>
 <section id="tab-fav" class="tab">
   <div class="heading"><h2>お気に入り</h2><span class="count" id="favCount">0件</span></div>
-  <p class="subtle">一覧の♡を押すと登録できます。右の「＋追加」で読み取り一覧へ入れられます。</p>
+  <p class="subtle">一覧の♡で登録したバーコードを見返せます。</p>
   <div id="favList"></div>
 </section>
 <section id="tab-settings" class="tab">
@@ -77,10 +77,8 @@ footer button.active{color:#1677ed;background:#eaf2ff}footer .navicon{font-size:
     <div class="setting-row"><span>読み取り音</span><button id="sound" class="blue">🔊 ON</button></div>
     <p class="subtle">バーコード検出時に音と振動でお知らせします。音量は端末側でも調整できます。</p>
   </div>
-  <div class="panel">
-    <p class="setting-title">対応形式</p>
-    <p class="subtle">現在は読み取り精度を優先し、動作確認済みのJAN-13（EAN-13）に対応しています。他形式の追加は次の調整で対応します。</p>
-  </div>
+  <div class="panel"><p class="setting-title">表示設定</p><div class="setting-row"><span>最新の読み取りを表示</span><button id="showLatest" class="blue" aria-pressed="true">表示 ON</button></div><p class="subtle">OFFでも一覧への記録は続きます。</p></div>
+  <div class="panel"><p class="setting-title">対応バーコード</p><p class="subtle">JAN / EAN-13・EAN-8 / UPC-A・UPC-E / CODE128・CODE39 / ITFに対応しています。形式によって読み取りやすさは異なります。</p></div>
 </section>
 <footer>
  <button class="active" data-tab="scan"><span class="navicon">▥</span><span>読み取り</span></button>
@@ -91,12 +89,13 @@ footer button.active{color:#1677ed;background:#eaf2ff}footer .navicon{font-size:
 </div>
 <script>
 const $=id=>document.getElementById(id);
-const KEY='jan_reg_scanner_v1',FAV_KEY='jan_reg_favorites_v1',SOUND_KEY='jan_reg_sound_v1';
+const KEY='jan_reg_scanner_v1',FAV_KEY='jan_reg_favorites_v1',SOUND_KEY='jan_reg_sound_v1',LATEST_KEY='jan_reg_show_latest_v1';
 let items=[],favorites=[],scanner=null,running=false,busy=false,audio=null,tab='scan';
-let sound=true,lastCode='',lastSeen=0,lastAccept=0,latest='';
-try{const v=JSON.parse(localStorage.getItem(KEY)||'[]');if(Array.isArray(v))items=v.filter(x=>/^\d{13}$/.test(x.code)&&Number.isInteger(x.qty)&&x.qty>0).slice(0,500);}catch(e){}
-try{const v=JSON.parse(localStorage.getItem(FAV_KEY)||'[]');if(Array.isArray(v))favorites=v.filter(x=>typeof x==='string'&&/^\d{13}$/.test(x));}catch(e){}
-try{sound=localStorage.getItem(SOUND_KEY)!=='off';}catch(e){}
+let sound=true,showLatest=true,lastCode='',lastSeen=0,lastAccept=0,latest='';
+const VALID_CODE=/^[0-9]{6,32}$/;
+try{const v=JSON.parse(localStorage.getItem(KEY)||'[]');if(Array.isArray(v))items=v.filter(x=>x&&typeof x.code==='string'&&VALID_CODE.test(x.code)&&Number.isInteger(x.qty)&&x.qty>0).slice(0,500);}catch(e){}
+try{const v=JSON.parse(localStorage.getItem(FAV_KEY)||'[]');if(Array.isArray(v))favorites=v.filter(x=>typeof x==='string'&&VALID_CODE.test(x));}catch(e){}
+try{sound=localStorage.getItem(SOUND_KEY)!=='off';showLatest=localStorage.getItem(LATEST_KEY)!=='off';}catch(e){}
 latest=items.length?items[0].code:'';
 function persist(){try{localStorage.setItem(KEY,JSON.stringify(items));}catch(e){}}
 function saveFav(){try{localStorage.setItem(FAV_KEY,JSON.stringify(favorites));}catch(e){}}
@@ -108,11 +107,15 @@ function updateControls(){
  $('copyAll').disabled=!items.length;$('clear').disabled=!items.length;
  $('sound').textContent=sound?'🔊 ON':'🔇 OFF';
  $('sound').className=sound?'blue':'gray';
+ $('latestPanel').hidden=!showLatest;
+ $('showLatest').textContent=showLatest?'表示 ON':'表示 OFF';
+ $('showLatest').className=showLatest?'blue':'gray';
+ $('showLatest').setAttribute('aria-pressed',String(showLatest));
 }
 function render(){
  const list=$('list');list.replaceChildren();
  $('count').textContent=items.length+'種（計'+items.reduce((sum,i)=>sum+i.qty,0)+'点）';
- if(!items.length){const el=document.createElement('div');el.className='empty';el.textContent='読み取ったJANはここに表示されます';list.append(el);}
+ if(!items.length){const el=document.createElement('div');el.className='empty';el.textContent='読み取ったバーコードはここに表示されます';list.append(el);}
  items.forEach(item=>{
   const row=document.createElement('div');row.className='item';
   const code=document.createElement('span');code.className='code';code.textContent=item.code;
@@ -134,11 +137,7 @@ function render(){
  favorites.forEach(code=>{
   const row=document.createElement('div');row.className='item';
   const label=document.createElement('span');label.className='code';label.textContent=code;
-  const add=document.createElement('button');add.className='blue';add.textContent='＋追加';add.style.padding='8px';
-  add.onclick=()=>{addItem(code,false);$('listStatus').textContent='✓ '+code+' を一覧に追加しました';};
-  const del=document.createElement('button');del.className='icon-button remove';del.textContent='×';
-  del.onclick=()=>{favorites=favorites.filter(x=>x!==code);saveFav();render();};
-  row.append(label,add,del);fav.append(row);
+  row.append(label);fav.append(row);
  });
  $('latestCode').textContent=latest||'未読み取り';
  $('latestQty').textContent=latest?'数量 '+(items.find(x=>x.code===latest)?.qty||0):'読み取り待機中';
@@ -159,8 +158,8 @@ function addItem(code,notify=true){
  persist();render();
 }
 function onRead(value){
- const code=String(value).replace(/[\s-]/g,'');
- if(!/^\d{13}$/.test(code))return;
+ const code=String(value).trim();
+ if(!VALID_CODE.test(code))return;
  const now=Date.now();
  if(code===lastCode&&now-lastSeen<1300){lastSeen=now;return;}
  if(now-lastAccept<600)return;
@@ -175,7 +174,7 @@ async function start(){
  try{
   if(typeof Html5Qrcode==='undefined')throw Error('読み取りライブラリを読み込めません');
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw Error('カメラAPIが使用できません');
-  if(!scanner)scanner=new Html5Qrcode('reader',{formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],verbose:false});
+  if(!scanner)scanner=new Html5Qrcode('reader',{formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13,Html5QrcodeSupportedFormats.EAN_8,Html5QrcodeSupportedFormats.UPC_A,Html5QrcodeSupportedFormats.UPC_E,Html5QrcodeSupportedFormats.CODE_128,Html5QrcodeSupportedFormats.CODE_39,Html5QrcodeSupportedFormats.ITF],verbose:false});
   const config={fps:15,qrbox:(w,h)=>({width:Math.max(100,Math.min(340,Math.floor(w*.92))),height:Math.max(75,Math.min(110,Math.floor(h*.55))) }),disableFlip:true};
   const candidates=[{facingMode:'environment'}];
   try{for(const cam of backCameraFirst(await detectCameras())){if(!candidates.includes(cam.id))candidates.push(cam.id);}}catch(e){}
@@ -186,7 +185,7 @@ async function start(){
    catch(e){error=e;}
   }
   if(!running)throw error||Error('カメラが見つかりません');
-  status('スキャン中：JANをかざしてください');
+  status('スキャン中：バーコードをかざしてください');
  }catch(e){status('カメラエラー：'+(e.message||String(e))+'。カメラの許可を確認してください。');}
  finally{busy=false;updateControls();}
 }
@@ -214,8 +213,9 @@ document.querySelectorAll('footer button').forEach(b=>b.onclick=()=>switchTab(b.
 $('start').onclick=()=>{unlockAudio();start();};
 $('stop').onclick=stop;
 $('sound').onclick=()=>{sound=!sound;try{localStorage.setItem(SOUND_KEY,sound?'on':'off');}catch(e){}unlockAudio();updateControls();};
-$('copyLatest').onclick=async()=>{if(!latest)return;try{await copyText(latest);status('✓ 最新JANをコピーしました');}catch(e){status('コピーエラー：'+e.message);}};
-$('copyAll').onclick=async()=>{try{await copyText(items.map(x=>x.code+'\t'+x.qty).join('\n'));$('listStatus').textContent='✓ '+items.length+'種類のJANと数量をコピーしました';}catch(e){$('listStatus').textContent='コピーエラー：'+e.message;}};
+$('showLatest').onclick=()=>{showLatest=!showLatest;try{localStorage.setItem(LATEST_KEY,showLatest?'on':'off');}catch(e){}updateControls();};
+$('copyLatest').onclick=async()=>{if(!latest)return;try{await copyText(latest);status('✓ 最新バーコードをコピーしました');}catch(e){status('コピーエラー：'+e.message);}};
+$('copyAll').onclick=async()=>{try{await copyText(items.map(x=>x.code+'\t'+x.qty).join('\n'));$('listStatus').textContent='✓ '+items.length+'種類のバーコードと数量をコピーしました';}catch(e){$('listStatus').textContent='コピーエラー：'+e.message;}};
 $('clear').onclick=()=>{if(!items.length||!confirm('読み取り一覧をクリアしますか？'))return;items=[];latest='';lastCode='';lastSeen=0;lastAccept=0;persist();render();};
 document.addEventListener('pointerdown',unlockAudio,{once:true});
 render();
