@@ -49,13 +49,13 @@ button:disabled{opacity:.45}
 <header><h1>JANレジスキャナー</h1><span id="state" class="pill">準備中</span></header>
 <div class="camera"><div id="reader"></div><div class="hint">JANを横長の枠に合わせてください</div></div>
 <div class="controls"><button id="start">📷 カメラ起動</button><button id="stop" disabled>カメラ停止</button><button id="sound">🔊 音ON</button></div>
-<div class="camera-select-wrap"><label for="cameraSelect">使用するカメラ</label><select id="cameraSelect"><option value="">自動選択</option></select></div>
+
 <main class="content">
 <div class="heading"><strong>読み取り一覧</strong><span id="count" class="count">0種（計0点）</span></div>
 <div id="status" role="status">カメラ準備中...</div>
 <div id="list"></div>
 <div class="actions">
-<button id="csv" class="blue">CSV保存</button><button id="clear" class="gray">一覧クリア</button>
+<button id="copy" class="blue">📋 コピー</button><button id="clear" class="gray">一覧クリア</button>
 <button id="send" class="green" disabled>シート1へ送信（GAS未接続）</button>
 </div>
 <p class="note">読み取り履歴はこの端末内に一時保存されます。シート1への送信はGAS接続後に有効化します。</p>
@@ -72,7 +72,7 @@ function controls(){
  $('start').disabled=running||busy;$('stop').disabled=!running||busy;
  $('state').textContent=running?'スキャン中':busy?'起動中':'停止中';
  $('state').classList.toggle('on',running);
- $('csv').disabled=items.length===0;$('clear').disabled=items.length===0;
+ $('copy').disabled=items.length===0;$('clear').disabled=items.length===0;
 }
 function render(){
  const list=$('list');list.replaceChildren();
@@ -100,7 +100,7 @@ function unlockAudio(){
 }
 function beep(duplicate){
  if(!sound||!audio||audio.state!=='running')return;
- try{const t=audio.currentTime,o=audio.createOscillator(),g=audio.createGain();o.type='sine';o.frequency.value=duplicate?1800:2300;g.gain.setValueAtTime(.13,t);g.gain.exponentialRampToValueAtTime(.001,t+.09);o.connect(g);g.connect(audio.destination);o.start(t);o.stop(t+.1);}catch(e){}
+ try{const t=audio.currentTime,o=audio.createOscillator(),g=audio.createGain();o.type='sine';o.frequency.value=duplicate?1800:2300;g.gain.setValueAtTime(.38,t);g.gain.exponentialRampToValueAtTime(.001,t+.15);o.connect(g);g.connect(audio.destination);o.start(t);o.stop(t+.16);}catch(e){}
 }
 function onRead(value){
  const code=String(value).replace(/[\s-]/g,'');
@@ -120,19 +120,6 @@ async function detectCameras(){
  if(typeof Html5Qrcode==='undefined')throw Error('バーコードライブラリが読み込めません');
  const cams=await Html5Qrcode.getCameras();
  detectedCameras=Array.isArray(cams)?cams:[];
- const select=$('cameraSelect');
- const previous=select.value;
- select.replaceChildren();
- const automatic=document.createElement('option');
- automatic.value='';automatic.textContent='自動選択';
- select.appendChild(automatic);
- detectedCameras.forEach((cam,i)=>{
-  const option=document.createElement('option');
-  option.value=cam.id;
-  option.textContent=cam.label||('カメラ '+(i+1));
-  select.appendChild(option);
- });
- if(detectedCameras.some(cam=>cam.id===previous))select.value=previous;
  return detectedCameras;
 }
 function backCameraFirst(cams){
@@ -160,10 +147,7 @@ async function start(){
    }),
    disableFlip:true
   };
-  const selected=$('cameraSelect').value;
-  const candidates=[];
-  if(selected)candidates.push(selected);
-  if(!selected)candidates.push({facingMode:'environment'});
+  const candidates=[{facingMode:'environment'}];
   let detectionError=null;
   try{
    const cams=await detectCameras();
@@ -172,7 +156,7 @@ async function start(){
    }
   }catch(e){detectionError=e;}
   // デバイス名が取得できない環境でも、デフォルトカメラを試す。
-  if(!selected)candidates.push({facingMode:'user'});
+  candidates.push({facingMode:'user'});
   let startError=null;
   for(const camera of candidates){
    try{
@@ -190,7 +174,7 @@ async function start(){
   status('スキャン中：JANをかざしてください');
  }catch(e){
   const detail=e.message||String(e);
-  status('カメラエラー：'+detail+'。別のカメラを選択するか、ブラウザのカメラ設定を確認してください。');
+  status('カメラエラー：'+detail+'。ブラウザのカメラ許可を確認し、再起動を試してください。');
  }finally{busy=false;controls();}
 }
 async function stop(){
@@ -200,16 +184,27 @@ async function stop(){
  finally{busy=false;controls();}
 }
 $('start').onclick=()=>{unlockAudio();start();};
-$('cameraSelect').onchange=async()=>{if(running)await stop();start();};
 $('stop').onclick=stop;
 $('sound').onclick=()=>{sound=!sound;$('sound').textContent=sound?'🔊 音ON':'🔇 音OFF';unlockAudio();};
 $('clear').onclick=()=>{if(!items.length||!confirm('一覧をクリアしますか？'))return;items=[];persist();render();status('一覧をクリアしました');};
-$('csv').onclick=()=>{
+$('copy').onclick=async()=>{
  if(!items.length)return;
- const rows=[['JANコード','数量'],...items.map(x=>[x.code,x.qty])];
- const data='\uFEFF'+rows.map(row=>row.join(',')).join('\r\n');
- const url=URL.createObjectURL(new Blob([data],{type:'text/csv;charset=utf-8;'}));
- const a=document.createElement('a');a.href=url;a.download='jan_'+new Date().toISOString().slice(0,10)+'.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1200);
+ // スプレッドシートへ貼り付けやすい「JANコード<TAB>数量」形式。
+ const value=items.map(item=>item.code+'\t'+item.qty).join('\n');
+ try{
+  if(navigator.clipboard&&window.isSecureContext){
+   await navigator.clipboard.writeText(value);
+  }else{
+   const textarea=document.createElement('textarea');
+   textarea.value=value;textarea.style.position='fixed';textarea.style.opacity='0';
+   document.body.append(textarea);textarea.focus();textarea.select();
+   if(!document.execCommand('copy'))throw Error('コピーが拒否されました');
+   textarea.remove();
+  }
+  status('✓ '+items.length+'種類のJANと数量をコピーしました');
+ }catch(e){
+  status('コピーできませんでした：'+(e.message||String(e)));
+ }
 };
 document.addEventListener('pointerdown',unlockAudio,{once:true});
 render();
