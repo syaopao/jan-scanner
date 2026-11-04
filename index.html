@@ -22,6 +22,7 @@ h1{font-size:18px;margin:0}
 button{border:0;border-radius:10px;cursor:pointer;font:inherit;font-weight:650;padding:12px}
 button:disabled{opacity:.45}
 .controls button{flex:1;background:#334155;color:#fff;font-size:12px;padding:11px 5px}
+.camera-select-wrap{background:#1e293b;padding:0 12px 10px;display:flex;gap:8px;align-items:center}.camera-select-wrap label{font-size:12px;white-space:nowrap;color:#cbd5e1}.camera-select-wrap select{min-width:0;flex:1;background:#334155;color:white;border:1px solid #64748b;border-radius:8px;padding:9px;font-size:12px}
 .content{background:#f1f5f9;color:#1e293b;flex:1;border-radius:18px 18px 0 0;padding:13px;display:flex;flex-direction:column}
 .heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .count{background:#dbeafe;color:#1d4ed8;font-size:12px;font-weight:bold;border-radius:20px;padding:5px 9px}
@@ -48,6 +49,7 @@ button:disabled{opacity:.45}
 <header><h1>JANレジスキャナー</h1><span id="state" class="pill">準備中</span></header>
 <div class="camera"><div id="reader"></div><div class="frame"></div><div class="hint">JANを横長の枠に合わせてください</div></div>
 <div class="controls"><button id="start">📷 カメラ起動</button><button id="stop" disabled>カメラ停止</button><button id="sound">🔊 音ON</button></div>
+<div class="camera-select-wrap"><label for="cameraSelect">使用するカメラ</label><select id="cameraSelect"><option value="">自動選択</option></select></div>
 <main class="content">
 <div class="heading"><strong>読み取り一覧</strong><span id="count" class="count">0種（計0点）</span></div>
 <div id="status" role="status">カメラ準備中...</div>
@@ -112,20 +114,84 @@ function onRead(value){
  else {items.unshift({code,qty:1});status('✓ 読み取り成功：'+code);}
  beep(i>=0);if(navigator.vibrate)navigator.vibrate(80);persist();render();
 }
+// 端末のカメラ一覧を取得。名称が取得できる場合は背面を優先。
+let detectedCameras=[];
+async function detectCameras(){
+ if(typeof Html5Qrcode==='undefined')throw Error('バーコードライブラリが読み込めません');
+ const cams=await Html5Qrcode.getCameras();
+ detectedCameras=Array.isArray(cams)?cams:[];
+ const select=$('cameraSelect');
+ const previous=select.value;
+ select.replaceChildren();
+ const automatic=document.createElement('option');
+ automatic.value='';automatic.textContent='自動選択';
+ select.appendChild(automatic);
+ detectedCameras.forEach((cam,i)=>{
+  const option=document.createElement('option');
+  option.value=cam.id;
+  option.textContent=cam.label||('カメラ '+(i+1));
+  select.appendChild(option);
+ });
+ if(detectedCameras.some(cam=>cam.id===previous))select.value=previous;
+ return detectedCameras;
+}
+function backCameraFirst(cams){
+ return [...cams].sort((a,b)=>{
+  const rank=cam=>/back|rear|environment|背面|後面|アウト/i.test(cam.label||'')?0:1;
+  return rank(a)-rank(b);
+ });
+}
 async function start(){
- if(running||busy)return;busy=true;controls();status('カメラ起動中...');
+ if(running||busy)return;
+ busy=true;controls();status('カメラを探しています...');
  try{
-  if(typeof Html5Qrcode==='undefined')throw Error('読み取りライブラリが読み込めません');
-  if(!scanner)scanner=new Html5Qrcode('reader',{formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],verbose:false});
-  await scanner.start({facingMode:'environment'},{
-   fps:15,
-   qrbox:(w,h)=>({width:Math.max(90,Math.min(310,Math.floor(w*.84))),height:Math.max(35,Math.min(54,Math.floor(h*.38)))}),
-   aspectRatio:2.3,
+  if(typeof Html5Qrcode==='undefined')throw Error('読み取りライブラリを読み込めません');
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+   throw Error('ブラウザがカメラに対応していないか、安全なHTTPS接続ではありません');
+  }
+  if(!scanner)scanner=new Html5Qrcode('reader',{
+   formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],verbose:false
+  });
+  const config={
+   fps:12,
+   qrbox:(w,h)=>({
+    width:Math.max(80,Math.min(310,Math.floor(w*.82))),
+    height:Math.max(32,Math.min(54,Math.floor(h*.38)))
+   }),
    disableFlip:true
-  },onRead,()=>{});
-  running=true;status('スキャン中：JANをかざしてください');
- }catch(e){status('カメラエラー：'+(e.message||String(e))+'。サイトのカメラ許可を確認してください。');}
- finally{busy=false;controls();}
+  };
+  const selected=$('cameraSelect').value;
+  const candidates=[];
+  if(selected)candidates.push(selected);
+  if(!selected)candidates.push({facingMode:'environment'});
+  let detectionError=null;
+  try{
+   const cams=await detectCameras();
+   for(const cam of backCameraFirst(cams)){
+    if(!candidates.includes(cam.id))candidates.push(cam.id);
+   }
+  }catch(e){detectionError=e;}
+  // デバイス名が取得できない環境でも、デフォルトカメラを試す。
+  if(!selected)candidates.push({facingMode:'user'});
+  let startError=null;
+  for(const camera of candidates){
+   try{
+    status('カメラを起動中...');
+    await scanner.start(camera,config,onRead,()=>{});
+    running=true;break;
+   }catch(e){startError=e;}
+  }
+  if(!running){
+   if(!candidates.length){
+    throw detectionError||Error('利用できるカメラが見つかりません');
+   }
+   throw startError||detectionError||Error('カメラを起動できません');
+  }
+  status('スキャン中：JANをかざしてください');
+ }catch(e){
+  const detail=e.message||String(e);
+  status('カメラエラー：'+detail+'。別のカメラを選択するか、ブラウザのカメラ設定を確認してください。');
+ }finally{busy=false;controls();}
 }
 async function stop(){
  if(!running||busy)return;busy=true;controls();
@@ -134,6 +200,7 @@ async function stop(){
  finally{busy=false;controls();}
 }
 $('start').onclick=()=>{unlockAudio();start();};
+$('cameraSelect').onchange=async()=>{if(running)await stop();start();};
 $('stop').onclick=stop;
 $('sound').onclick=()=>{sound=!sound;$('sound').textContent=sound?'🔊 音ON':'🔇 音OFF';unlockAudio();};
 $('clear').onclick=()=>{if(!items.length||!confirm('一覧をクリアしますか？'))return;items=[];persist();render();status('一覧をクリアしました');};
