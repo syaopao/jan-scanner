@@ -13,9 +13,9 @@ body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#0f172a;
 header{background:#1e293b;padding:12px 14px;display:flex;justify-content:space-between;align-items:center}
 h1{font-size:18px;margin:0}
 .pill{border-radius:20px;background:#334155;padding:5px 10px;font-size:12px}.pill.on{background:#166534}
-.camera{position:relative;height:155px;background:#000;overflow:hidden;flex:none}
-#reader,#reader video{width:100%!important;height:155px!important;object-fit:cover!important}
-.frame{position:absolute;left:9%;width:82%;height:54px;top:50%;transform:translateY(-50%);border:2px solid #4ade80;border-radius:8px;pointer-events:none}
+.camera{position:relative;min-height:245px;background:#000;overflow:hidden;flex:none}
+#reader{width:100%!important;min-height:245px;background:#000}#reader video{width:100%!important;max-height:255px!important;object-fit:contain!important}
+.frame{display:none}
 .frame:before{content:"";position:absolute;top:50%;left:6%;right:6%;height:1px;background:#4ade80}
 .hint{position:absolute;bottom:5px;left:0;right:0;text-align:center;font-size:11px;text-shadow:0 1px 3px black;pointer-events:none}
 .controls{display:flex;gap:7px;padding:9px 12px;background:#1e293b}
@@ -47,7 +47,7 @@ button:disabled{opacity:.45}
 <body>
 <div class="app">
 <header><h1>JANレジスキャナー</h1><span id="state" class="pill">準備中</span></header>
-<div class="camera"><div id="reader"></div><div class="frame"></div><div class="hint">JANを横長の枠に合わせてください</div></div>
+<div class="camera"><div id="reader"></div><div class="hint">JANを横長の枠に合わせてください</div></div>
 <div class="controls"><button id="start">📷 カメラ起動</button><button id="stop" disabled>カメラ停止</button><button id="sound">🔊 音ON</button></div>
 <div class="camera-select-wrap"><label for="cameraSelect">使用するカメラ</label><select id="cameraSelect"><option value="">自動選択</option></select></div>
 <main class="content">
@@ -153,10 +153,10 @@ async function start(){
    formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13],verbose:false
   });
   const config={
-   fps:12,
+   fps:15,
    qrbox:(w,h)=>({
-    width:Math.max(80,Math.min(310,Math.floor(w*.82))),
-    height:Math.max(32,Math.min(54,Math.floor(h*.38)))
+    width:Math.max(100,Math.min(340,Math.floor(w*.92))),
+    height:Math.max(75,Math.min(110,Math.floor(h*.55)))
    }),
    disableFlip:true
   };
